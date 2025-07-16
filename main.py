@@ -19,8 +19,8 @@ def main():
 
     config = load_config()
     # df = pd.read_csv("test.csv")
-    df=pd.read_excel(config['filename'],sheet_name=config['sheetname'], usecols=['Facility Id','Facility Name','City/Town','State'])
-    print(df.head(10))
+    df=pd.read_excel(config['filename'],sheet_name=config['sheetname'], usecols=['Facility ID','Facility Name','City/Town','State'])
+    df=df[df['State']=='AR']
     df['Hospital Link'] = ''
     df['has_cms_txt'] = False
     df['Source URL'] = ''
