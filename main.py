@@ -16,12 +16,12 @@ def load_config():
 
 def main():
     start_time = time.time()
-    selenium = SeleniumHandler(headless=False)
+    selenium = SeleniumHandler(headless=True)
 
     config = load_config()
     df = pd.read_csv("test.csv")
     # df=pd.read_excel(config['filename'],sheet_name=config['sheetname'], usecols=['Facility ID','Facility Name','City/Town','State'])
-    # df=df[df['State']=='CO']
+    # df=df[df['State']==config['state']]
     df['Hospital Link'] = ''
     df['has_cms_txt'] = False
     df['Source URL'] = ''
@@ -39,7 +39,6 @@ def main():
             print(f"[{i+1}/{len(df)}] Searching: {search_query}")
             
             result_url = selenium.get_url(search_query)
-            print(f'result url in main:{result_url}')
 
             if result_url:
                 parsed = urlparse(result_url)
@@ -63,7 +62,6 @@ def main():
                 else:  # CMS file doesn't exist
                     df.at[i, 'Hospital Link'] = root_url
                     df.at[i, 'has_cms_txt'] = False
-                    print(f"CMS file not found, using root URL: {root_url}")
                     # Try manual search for source and MRF
                     source, mrf = selenium.get_source_mrf_manually(root_url, search_query)
                     df.at[i, 'Source URL'] = source

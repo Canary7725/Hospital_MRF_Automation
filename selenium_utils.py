@@ -31,36 +31,30 @@ class SeleniumHandler:
 
     def _init_driver(self):
         chrome_options = Options()
-        chrome_options.binary_location = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"  # macOS example
-
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--user-data-dir=/tmp/selenium-profile")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")  # Add this for stability
-        chrome_options.add_argument("--disable-web-security")  # Add this for accessing local files
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-web-security")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-plugins")
-        chrome_options.add_argument("--disable-images")  # Faster loading
-        chrome_options.add_argument("--disable-javascript")  # Optional: faster loading
-        
-        # Set timeouts
-        chrome_options.add_argument("--timeout=30000")
+        chrome_options.add_argument("--ignore-certificate-errors")
         chrome_options.add_argument("--page-load-strategy=eager")
 
         # Set custom user-agent
         chrome_options.add_argument(
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0.0.0 Safari/537.36"
+        "user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/139.0.0.0 Safari/537.36"
         )
+
         if self.headless:
-            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--headless=new")
 
         try:
             # Try with automatic driver management first
-            self.driver = uc.Chrome(options=chrome_options,version_main=139, headless=self.headless, use_subprocess=True)
+            self.driver = uc.Chrome(options=chrome_options,version_main=139, use_subprocess=True)
             # Set timeouts
             self.driver.set_page_load_timeout(60)  # 60 seconds page load timeout
             self.driver.implicitly_wait(10)  # 10 seconds implicit wait
@@ -70,8 +64,7 @@ class SeleniumHandler:
             try:
                 # Fallback to regular ChromeDriver with automatic driver management
                 if WEBDRIVER_MANAGER_AVAILABLE:
-                    service = Service(ChromeDriverManager().install())
-                    self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                    self.driver = webdriver.Chrome(options=chrome_options)
                 else:
                     # Last fallback - try system ChromeDriver
                     print("webdriver_manager not available. Trying system ChromeDriver...")
@@ -356,7 +349,6 @@ class SeleniumHandler:
                     if link.startswith('https://www.bing.com'):
                         print("Decoding bing redirect link")
                         link = extract_url_from_bing_redirect(link)
-                        print(f"search page first link returned:{link}")
                     
                     # Use Selenium to check if URL exists instead of requests
                     if self.url_exists_selenium(link):
@@ -388,21 +380,25 @@ class SeleniumHandler:
             self.driver.get(url)
             time.sleep(5)
             self.wait_for_page_load() 
+            
             price_transparency_link = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((
                     By.XPATH,
                     "//a[.//text()["
                     "contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'price') or "
                     "contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'pricing') or "
-                    "contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'transparency')]]"
+                    "contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'price transparency')]]"
                 )))
+            
             self.driver.execute_script("arguments[0].scrollIntoView(true);", price_transparency_link)
             print(price_transparency_link.get_attribute('href'))
+            source_url = price_transparency_link.get_attribute('href')
             self.driver.execute_script("arguments[0].scrollIntoView(true);", price_transparency_link)
             self.driver.execute_script("arguments[0].click();", price_transparency_link)
             self.wait_for_page_load()
-            source_url = price_transparency_link.get_attribute('href')
-            search_words = normalize_to_keywords("standardcharges transparency mrf standard charges chargemaster charge master")
+            
+            search_words = normalize_to_keywords("standardcharges price transparency mrf standard charges chargemaster charge master .zip .xlsx .pdf .csv .json")
+            
             try:
                 WebDriverWait(self.driver, 10).until(EC.presence_of_all_elements_located((By.TAG_NAME, "a")))
                 all_links = self.driver.find_elements(By.TAG_NAME, "a")
@@ -419,14 +415,22 @@ class SeleniumHandler:
                         if match_score > best_score:
                             best_score = match_score
                             best_match = urljoin(self.driver.current_url, href)
-                if not best_match:
-                    print("Mrf link not found")
+
+                print(f"Final best score: {best_score}")
+                
+                # This was the missing part - return the result!
+                if best_match and best_score > 0:
+                    return source_url, best_match
+                else:
+                    print("MRF link not found - no matches above score 0")
+                    return source_url, "MRF Link Not Found"
+                    
             except Exception as e:
-                print('Error', e)
+                print('Error finding MRF links:', e)
                 return source_url, "MRF Link Not Found"
-            return source_url, best_match
-        except Exception:
-            print("Price Transparency Not Found")
+                
+        except Exception as e:
+            print("Price Transparency Not Found:", e)
             return "Price Transparency Not Found", None
 
 
